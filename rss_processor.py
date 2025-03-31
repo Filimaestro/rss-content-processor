@@ -102,13 +102,6 @@ class RSSProcessor:
             link = article.get('link')
             if not link:
                 logger.warning(f"No link found for article: {article.get('title', 'Unknown title')}")
-                # Fallback to RSS content if no link
-                if 'content' in article:
-                    return article.content[0].value
-                elif 'summary' in article:
-                    return article.summary
-                elif 'description' in article:
-                    return article.description
                 return ""
 
             logger.info(f"Fetching full article content from: {link}")
@@ -135,10 +128,28 @@ class RSSProcessor:
                 text_content = article_content.get_text(separator=' ', strip=True)
                 # Clean up whitespace
                 text_content = ' '.join(text_content.split())
-                logger.info(f"Successfully extracted content from {link}")
-                return text_content
+                
+                if text_content:
+                    logger.info(f"Successfully extracted content from {link}")
+                    return text_content
+                else:
+                    logger.warning(f"Found article content div but no text content in {link}")
 
-            # If we couldn't get content from the link, fallback to RSS content
+            # If we couldn't find the specific div, try to find any content
+            main_content = soup.find('main') or soup.find('article') or soup.find('div', class_='article-content')
+            if main_content:
+                # Remove unwanted elements
+                for element in main_content.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside']):
+                    element.decompose()
+                
+                text_content = main_content.get_text(separator=' ', strip=True)
+                text_content = ' '.join(text_content.split())
+                
+                if text_content:
+                    logger.info(f"Successfully extracted content from {link} using fallback method")
+                    return text_content
+
+            # Only fall back to RSS content if we absolutely couldn't get content from the link
             logger.warning(f"Could not find main content in article: {link}, falling back to RSS content")
             if 'content' in article:
                 return article.content[0].value
@@ -151,7 +162,7 @@ class RSSProcessor:
 
         except requests.RequestException as e:
             logger.error(f"Error fetching article content: {str(e)}")
-            # Fallback to RSS content on error
+            # Only fall back to RSS content on error
             if 'content' in article:
                 return article.content[0].value
             elif 'summary' in article:
