@@ -10,6 +10,7 @@ permissions:
   contents: read
   actions: write
   id-token: write
+  packages: write
 
 jobs:
   process-rss:
@@ -49,7 +50,7 @@ jobs:
     
     - name: Upload processed articles
       if: steps.check_articles.outputs.has_articles == 'true'
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v1.0.0
       with:
         name: processed-articles
         path: storage/processed_articles/
