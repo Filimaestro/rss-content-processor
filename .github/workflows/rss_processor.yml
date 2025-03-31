@@ -47,13 +47,21 @@ jobs:
           echo "has_articles=true" >> $GITHUB_OUTPUT
         fi
     
-    - name: Upload processed articles
+    - name: Create artifacts directory
+      if: steps.check_articles.outputs.has_articles == 'true'
+      run: mkdir -p artifacts
+    
+    - name: Copy processed articles
+      if: steps.check_articles.outputs.has_articles == 'true'
+      run: cp -r storage/processed_articles/* artifacts/
+    
+    - name: Upload artifacts
       if: steps.check_articles.outputs.has_articles == 'true'
       uses: actions/upload-artifact@v2
       with:
         name: processed-articles
-        path: storage/processed_articles/
-        retention-days: 7  # Keep artifacts for 7 days
+        path: artifacts/
+        retention-days: 7
     
     - name: Log if no articles were processed
       if: steps.check_articles.outputs.has_articles == 'false'
