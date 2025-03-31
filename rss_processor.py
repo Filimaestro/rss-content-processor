@@ -98,18 +98,17 @@ class RSSProcessor:
     def extract_article_content(self, article: Dict) -> str:
         """Extract the main content from an article."""
         try:
-            # First try to get content from RSS feed
-            if 'content' in article:
-                return article.content[0].value
-            elif 'summary' in article:
-                return article.summary
-            elif 'description' in article:
-                return article.description
-
-            # If no content in RSS feed, fetch from link
+            # First try to get content from the article link
             link = article.get('link')
             if not link:
                 logger.warning(f"No link found for article: {article.get('title', 'Unknown title')}")
+                # Fallback to RSS content if no link
+                if 'content' in article:
+                    return article.content[0].value
+                elif 'summary' in article:
+                    return article.summary
+                elif 'description' in article:
+                    return article.description
                 return ""
 
             logger.info(f"Fetching full article content from: {link}")
@@ -163,11 +162,26 @@ class RSSProcessor:
                 logger.info(f"Successfully extracted content from {link}")
                 return text_content
 
-            logger.warning(f"Could not find main content in article: {link}")
+            # If we couldn't get content from the link, fallback to RSS content
+            logger.warning(f"Could not find main content in article: {link}, falling back to RSS content")
+            if 'content' in article:
+                return article.content[0].value
+            elif 'summary' in article:
+                return article.summary
+            elif 'description' in article:
+                return article.description
+
             return ""
 
         except requests.RequestException as e:
             logger.error(f"Error fetching article content: {str(e)}")
+            # Fallback to RSS content on error
+            if 'content' in article:
+                return article.content[0].value
+            elif 'summary' in article:
+                return article.summary
+            elif 'description' in article:
+                return article.description
             return ""
         except Exception as e:
             logger.error(f"Error extracting content: {str(e)}")
