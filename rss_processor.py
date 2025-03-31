@@ -120,8 +120,18 @@ class RSSProcessor:
 
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Try to find the main content
-            # Common content containers
+            # Try to find the main content using the specific div structure
+            content = soup.find('div', class_='group component layout-component-item')
+            if content:
+                # Find the text div within the group
+                text_div = content.find('div', class_='text')
+                if text_div:
+                    # Get text content
+                    text_content = text_div.get_text(separator=' ', strip=True)
+                    logger.info(f"Successfully extracted content from {link}")
+                    return text_content
+
+            # Fallback to common content containers if specific structure not found
             content_selectors = [
                 'article',
                 '.article-content',
