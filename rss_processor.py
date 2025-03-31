@@ -119,40 +119,20 @@ class RSSProcessor:
 
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # First try to find the main content using the specific div structure
-            content = soup.find('div', class_='group component layout-component-item')
-            if content:
-                # Find the text div within the group
-                text_div = content.find('div', class_='text')
-                if text_div:
-                    # Remove unwanted elements
-                    for element in text_div.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside', 
-                                                    'img', 'figure', 'figcaption', 'blockquote', 'cite',
-                                                    'ul', 'ol', 'li', 'a', 'strong', 'em', 'span']):
-                        element.decompose()
-                    
-                    # Get text content
-                    text_content = text_div.get_text(separator=' ', strip=True)
-                    # Clean up whitespace
-                    text_content = ' '.join(text_content.split())
-                    logger.info(f"Successfully extracted content from {link}")
-                    return text_content
-
-            # If specific structure not found, try to find the main article content
-            # First try to find the article container
-            article_container = soup.find('article') or soup.find('div', class_='article-content')
-            if article_container:
-                # Remove unwanted elements
-                for element in article_container.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside', 
-                                                        'img', 'figure', 'figcaption', 'blockquote', 'cite',
-                                                        'ul', 'ol', 'li', 'a', 'strong', 'em', 'span',
-                                                        'div[class*="related"]', 'div[class*="popular"]',
-                                                        'div[class*="author"]', 'div[class*="social"]',
-                                                        'div[class*="share"]', 'div[class*="comment"]']):
+            # Find the main article content div
+            article_content = soup.find('div', class_='layout-components-group article-content')
+            if article_content:
+                # Remove the news category list
+                news_category = article_content.find('div', class_='news-category-list')
+                if news_category:
+                    news_category.decompose()
+                
+                # Remove unwanted elements but keep the main content structure
+                for element in article_content.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside']):
                     element.decompose()
                 
                 # Get text content
-                text_content = article_container.get_text(separator=' ', strip=True)
+                text_content = article_content.get_text(separator=' ', strip=True)
                 # Clean up whitespace
                 text_content = ' '.join(text_content.split())
                 logger.info(f"Successfully extracted content from {link}")
