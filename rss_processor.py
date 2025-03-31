@@ -1,12 +1,13 @@
 import feedparser
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import logging
 from typing import Dict, List, Optional
 import nltk
 from bs4 import BeautifulSoup
 import requests
+from dateutil import parser
 
 from config import (
     RSS_FEEDS,
@@ -29,8 +30,9 @@ logger = logging.getLogger(__name__)
 class RSSProcessor:
     def __init__(self):
         self.feeds = RSS_FEEDS
-        self.start_date = DEFAULT_START_DATE
-        self.end_date = DEFAULT_END_DATE
+        # Set date range to yesterday
+        self.end_date = datetime.now()
+        self.start_date = self.end_date - timedelta(days=1)
         
         logger.info(f"Initializing RSS Processor with {len(self.feeds)} feeds")
         logger.info(f"Date range: {self.start_date} to {self.end_date}")
@@ -46,6 +48,38 @@ class RSSProcessor:
             nltk.download('maxent_ne_chunker')
             nltk.download('words')
             logger.info("NLTK data downloaded successfully")
+
+    def is_article_from_yesterday(self, article: Dict) -> bool:
+        """Check if an article was published yesterday."""
+        try:
+            # Try to get the published date from various possible fields
+            pub_date = article.get('published', article.get('pubDate', article.get('updated')))
+            if not pub_date:
+                logger.warning(f"No publication date found for article: {article.get('title', 'Unknown title')}")
+                return False
+
+            # Parse the date string
+            article_date = parser.parse(pub_date)
+            
+            # Convert to datetime if it's a date object
+            if not isinstance(article_date, datetime):
+                article_date = datetime.combine(article_date, datetime.min.time())
+            
+            # Check if the article is from yesterday
+            is_yesterday = (
+                article_date.date() == self.start_date.date() and
+                self.start_date.date() <= article_date.date() <= self.end_date.date()
+            )
+            
+            if is_yesterday:
+                logger.info(f"Found yesterday's article: {article.get('title', 'Unknown title')} from {article_date}")
+            else:
+                logger.debug(f"Article not from yesterday: {article.get('title', 'Unknown title')} from {article_date}")
+            
+            return is_yesterday
+        except Exception as e:
+            logger.error(f"Error parsing date for article: {str(e)}")
+            return False
 
     def fetch_feed(self, feed_url: str) -> Optional[feedparser.FeedParserDict]:
         """Fetch and parse an RSS feed."""
@@ -195,6 +229,10 @@ class RSSProcessor:
                 if articles_processed >= MAX_ARTICLES_PER_FEED:
                     logger.info(f"Reached maximum articles limit for feed: {feed_url}")
                     break
+
+                # Only process articles from yesterday
+                if not self.is_article_from_yesterday(entry):
+                    continue
 
                 article_data = self.process_article(entry, feed_url)
                 if article_data:
