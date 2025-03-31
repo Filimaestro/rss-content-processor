@@ -5,6 +5,11 @@ on:
     - cron: '0 */6 * * *'  # Run every 6 hours
   workflow_dispatch:  # Allow manual trigger
 
+# Add permissions configuration
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   process-rss:
     runs-on: ubuntu-latest
