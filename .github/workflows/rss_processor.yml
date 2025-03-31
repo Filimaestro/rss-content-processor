@@ -22,12 +22,33 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
+    - name: Create storage directories
+      run: |
+        mkdir -p storage/processed_articles
+        mkdir -p storage/raw_articles
+    
     - name: Run RSS Processor
       run: python rss_processor.py
     
+    - name: Check if articles were processed
+      id: check_articles
+      run: |
+        if [ -z "$(ls -A storage/processed_articles/)" ]; then
+          echo "No articles were processed"
+          echo "has_articles=false" >> $GITHUB_OUTPUT
+        else
+          echo "Articles were processed"
+          echo "has_articles=true" >> $GITHUB_OUTPUT
+        fi
+    
     - name: Upload processed articles
+      if: steps.check_articles.outputs.has_articles == 'true'
       uses: actions/upload-artifact@v3
       with:
         name: processed-articles
         path: storage/processed_articles/
-        retention-days: 7  # Keep artifacts for 7 days 
+        retention-days: 7  # Keep artifacts for 7 days
+    
+    - name: Log if no articles were processed
+      if: steps.check_articles.outputs.has_articles == 'false'
+      run: echo "No articles were processed in this run" 
