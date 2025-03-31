@@ -98,13 +98,66 @@ class RSSProcessor:
     def extract_article_content(self, article: Dict) -> str:
         """Extract the main content from an article."""
         try:
+            # First try to get content from RSS feed
             if 'content' in article:
                 return article.content[0].value
             elif 'summary' in article:
                 return article.summary
             elif 'description' in article:
                 return article.description
-            logger.warning(f"No content found for article: {article.get('title', 'Unknown title')}")
+
+            # If no content in RSS feed, fetch from link
+            link = article.get('link')
+            if not link:
+                logger.warning(f"No link found for article: {article.get('title', 'Unknown title')}")
+                return ""
+
+            logger.info(f"Fetching full article content from: {link}")
+            response = requests.get(link, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }, timeout=10)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Try to find the main content
+            # Common content containers
+            content_selectors = [
+                'article',
+                '.article-content',
+                '.post-content',
+                '.entry-content',
+                'main',
+                '#content',
+                '.content',
+                '[role="main"]'
+            ]
+
+            content = None
+            for selector in content_selectors:
+                content = soup.select_one(selector)
+                if content:
+                    break
+
+            if not content:
+                # If no specific content container found, try to get the body
+                content = soup.find('body')
+
+            if content:
+                # Remove unwanted elements
+                for element in content.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside']):
+                    element.decompose()
+                
+                # Get text content
+                text_content = content.get_text(separator=' ', strip=True)
+                logger.info(f"Successfully extracted content from {link}")
+                return text_content
+
+            logger.warning(f"Could not find main content in article: {link}")
+            return ""
+
+        except requests.RequestException as e:
+            logger.error(f"Error fetching article content: {str(e)}")
             return ""
         except Exception as e:
             logger.error(f"Error extracting content: {str(e)}")
@@ -186,7 +239,15 @@ class RSSProcessor:
                 'published': article.get('published', ''),
                 'feed_url': feed_url,
                 'content': cleaned_content,
-                'analysis': analysis
+                'analysis': analysis,
+                'metadata': {
+                    'processed_date': datetime.now().isoformat(),
+                    'word_count': len(cleaned_content.split()),
+                    'sentence_count': len(nltk.sent_tokenize(cleaned_content)),
+                    'unique_words': len(set(cleaned_content.lower().split())),
+                    'language': 'en',  # Could be enhanced with language detection
+                    'difficulty_level': 'medium'  # Could be calculated based on content
+                }
             }
 
             logger.info(f"Successfully processed article: {article_data['title']}")
