@@ -112,14 +112,13 @@ class RSSProcessor:
 
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Try to find the main article content using various selectors
+            # Try to find the main article content using the specific div structure
             content = None
             
             # Try multiple selectors in order of specificity
             selectors = [
+                ('div', {'class_': 'layout-components-group article-content', 'data-v-28650198': ''}),
                 ('div', {'class_': 'layout-components-group article-content'}),
-                ('div', {'class_': 'group component layout-component-item'}),
-                ('div', {'class_': 'text'}),
                 ('div', {'class_': 'article-content'}),
                 ('div', {'class_': 'content'}),
                 ('article', {}),
@@ -144,7 +143,7 @@ class RSSProcessor:
                 
                 # Get all text elements
                 text_elements = []
-                for element in content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li']):
+                for element in content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'div']):
                     text = element.get_text(strip=True)
                     if text:
                         text_elements.append(text)
