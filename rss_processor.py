@@ -112,20 +112,37 @@ class RSSProcessor:
 
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Find the main article content div
-            article_content = soup.find('div', class_='layout-components-group article-content')
-            if article_content:
-                # Remove the news category list
-                news_category = article_content.find('div', class_='news-category-list')
+            # Try to find the main article content using various selectors
+            content = None
+            
+            # Try the specific div structure first
+            content = soup.find('div', class_='layout-components-group article-content')
+            
+            # If not found, try other common selectors
+            if not content:
+                content = soup.find('div', class_='group component layout-component-item')
+            
+            if not content:
+                content = soup.find('div', class_='text')
+            
+            if not content:
+                content = soup.find('article')
+            
+            if not content:
+                content = soup.find('main')
+
+            if content:
+                # Remove the news category list if present
+                news_category = content.find('div', class_='news-category-list')
                 if news_category:
                     news_category.decompose()
                 
                 # Remove unwanted elements but keep the main content structure
-                for element in article_content.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside']):
+                for element in content.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside']):
                     element.decompose()
                 
                 # Get text content
-                text_content = article_content.get_text(separator=' ', strip=True)
+                text_content = content.get_text(separator=' ', strip=True)
                 # Clean up whitespace
                 text_content = ' '.join(text_content.split())
                 
@@ -133,24 +150,13 @@ class RSSProcessor:
                     logger.info(f"Successfully extracted content from {link}")
                     return text_content
                 else:
-                    logger.warning(f"Found article content div but no text content in {link}")
+                    logger.warning(f"Found content container but no text content in {link}")
 
-            # If we couldn't find the specific div, try to find any content
-            main_content = soup.find('main') or soup.find('article') or soup.find('div', class_='article-content')
-            if main_content:
-                # Remove unwanted elements
-                for element in main_content.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside']):
-                    element.decompose()
-                
-                text_content = main_content.get_text(separator=' ', strip=True)
-                text_content = ' '.join(text_content.split())
-                
-                if text_content:
-                    logger.info(f"Successfully extracted content from {link} using fallback method")
-                    return text_content
+            # If we couldn't find any content, log the HTML structure for debugging
+            logger.warning(f"Could not find main content in article: {link}")
+            logger.debug(f"Page structure: {soup.prettify()[:1000]}")  # Log first 1000 chars of HTML
 
             # Only fall back to RSS content if we absolutely couldn't get content from the link
-            logger.warning(f"Could not find main content in article: {link}, falling back to RSS content")
             if 'content' in article:
                 return article.content[0].value
             elif 'summary' in article:
