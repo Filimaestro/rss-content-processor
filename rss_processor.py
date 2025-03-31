@@ -115,36 +115,42 @@ class RSSProcessor:
             # Try to find the main article content using various selectors
             content = None
             
-            # Try the specific div structure first
-            content = soup.find('div', class_='layout-components-group article-content')
+            # Try multiple selectors in order of specificity
+            selectors = [
+                ('div', {'class_': 'layout-components-group article-content'}),
+                ('div', {'class_': 'group component layout-component-item'}),
+                ('div', {'class_': 'text'}),
+                ('div', {'class_': 'article-content'}),
+                ('div', {'class_': 'content'}),
+                ('article', {}),
+                ('main', {})
+            ]
             
-            # If not found, try other common selectors
-            if not content:
-                content = soup.find('div', class_='group component layout-component-item')
-            
-            if not content:
-                content = soup.find('div', class_='text')
-            
-            if not content:
-                content = soup.find('article')
-            
-            if not content:
-                content = soup.find('main')
+            for tag, attrs in selectors:
+                content = soup.find(tag, attrs)
+                if content:
+                    logger.info(f"Found content using selector: {tag} with {attrs}")
+                    break
 
             if content:
+                # Remove unwanted elements
+                for element in content.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside', 'iframe', 'noscript']):
+                    element.decompose()
+                
                 # Remove the news category list if present
                 news_category = content.find('div', class_='news-category-list')
                 if news_category:
                     news_category.decompose()
                 
-                # Remove unwanted elements but keep the main content structure
-                for element in content.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside']):
-                    element.decompose()
+                # Get all text elements
+                text_elements = []
+                for element in content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li']):
+                    text = element.get_text(strip=True)
+                    if text:
+                        text_elements.append(text)
                 
-                # Get text content
-                text_content = content.get_text(separator=' ', strip=True)
-                # Clean up whitespace
-                text_content = ' '.join(text_content.split())
+                # Join all text elements with proper spacing
+                text_content = ' '.join(text_elements)
                 
                 if text_content:
                     logger.info(f"Successfully extracted content from {link}")
