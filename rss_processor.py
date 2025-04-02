@@ -309,19 +309,52 @@ class RSSProcessor:
     def save_article(self, article_data: Dict):
         """Save processed article to storage."""
         try:
-            # Create filename from title and date
-            safe_title = "".join(c for c in article_data['title'] if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            date_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"{safe_title}_{date_str}.json"
-            
-            # Save to processed articles directory
+            # Create filename for the combined articles file
+            date_str = datetime.now().strftime('%Y%m%d')
+            filename = f"articles_{date_str}.json"
             filepath = PROCESSED_ARTICLES_DIR / filename
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(article_data, f, ensure_ascii=False, indent=2)
             
-            logger.info(f"Saved article: {filename}")
+            # Load existing articles if file exists
+            existing_articles = []
+            if filepath.exists():
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    try:
+                        existing_articles = json.load(f)
+                    except json.JSONDecodeError:
+                        logger.warning(f"Error reading existing articles file: {filepath}")
+                        existing_articles = []
+            
+            # Add new article to the list
+            existing_articles.append(article_data)
+            
+            # Save all articles back to the file
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(existing_articles, f, ensure_ascii=False, indent=2)
+            
+            logger.info(f"Saved article to combined file: {filename}")
         except Exception as e:
             logger.error(f"Error saving article: {str(e)}")
+
+    def cleanup_old_files(self):
+        """Clean up old individual article files if they exist."""
+        try:
+            # Get all JSON files in the processed articles directory
+            json_files = list(PROCESSED_ARTICLES_DIR.glob('*.json'))
+            
+            # Skip the combined articles file
+            date_str = datetime.now().strftime('%Y%m%d')
+            combined_file = PROCESSED_ARTICLES_DIR / f"articles_{date_str}.json"
+            
+            # Delete individual article files
+            for file in json_files:
+                if file != combined_file:
+                    try:
+                        file.unlink()
+                        logger.info(f"Deleted old individual file: {file.name}")
+                    except Exception as e:
+                        logger.error(f"Error deleting file {file.name}: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error during cleanup: {str(e)}")
 
     def process_feeds(self):
         """Process all configured RSS feeds."""
@@ -352,6 +385,9 @@ class RSSProcessor:
                     total_articles_processed += 1
 
             logger.info(f"Processed {articles_processed} articles from {feed_url}")
+        
+        # Clean up old individual files
+        self.cleanup_old_files()
         
         logger.info(f"Total articles processed: {total_articles_processed}")
 
