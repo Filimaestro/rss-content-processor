@@ -106,25 +106,53 @@ class RSSProcessor:
 
             logger.info(f"Fetching full article content from: {link}")
             response = requests.get(link, headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }, timeout=10)
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }, timeout=15)  # Increased timeout
             response.raise_for_status()
 
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Try to find the main article content using the specific div structure
+            # Try to find the main article content using various selectors
             content = None
             
-            # Try multiple selectors in order of specificity
+            # Common content selectors for news websites
             selectors = [
-                ('div', {'class_': 'layout-components-group article-content', 'data-v-28650198': ''}),
-                ('div', {'class_': 'layout-components-group article-content'}),
+                # Article content selectors
+                ('article', {'class_': 'article-content'}),
+                ('article', {'class_': 'content'}),
+                ('article', {'class_': 'post-content'}),
+                ('article', {'class_': 'entry-content'}),
+                ('article', {'class_': 'article-body'}),
+                ('article', {'class_': 'story-content'}),
+                
+                # Div content selectors
                 ('div', {'class_': 'article-content'}),
                 ('div', {'class_': 'content'}),
+                ('div', {'class_': 'post-content'}),
+                ('div', {'class_': 'entry-content'}),
+                ('div', {'class_': 'article-body'}),
+                ('div', {'class_': 'story-content'}),
+                ('div', {'class_': 'article-text'}),
+                ('div', {'class_': 'article-main'}),
+                ('div', {'class_': 'main-content'}),
+                
+                # Specific RTVDrenthe selectors
+                ('div', {'class_': 'layout-components-group article-content', 'data-v-28650198': ''}),
+                ('div', {'class_': 'layout-components-group article-content'}),
+                
+                # Generic content containers
+                ('main', {}),
                 ('article', {}),
-                ('main', {})
+                ('div', {'id': 'content'}),
+                ('div', {'id': 'article-content'}),
+                ('div', {'id': 'main-content'})
             ]
             
+            # Try each selector
             for tag, attrs in selectors:
                 content = soup.find(tag, attrs)
                 if content:
@@ -133,29 +161,29 @@ class RSSProcessor:
 
             if content:
                 # Remove unwanted elements
-                for element in content.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside', 'iframe', 'noscript']):
+                for element in content.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside', 'iframe', 'noscript', 'form', 'button', 'input', 'select', 'textarea']):
                     element.decompose()
                 
-                # Remove the news category list if present
-                news_category = content.find('div', class_='news-category-list')
-                if news_category:
-                    news_category.decompose()
+                # Remove common non-content elements
+                for class_name in ['advertisement', 'social-share', 'related-articles', 'news-category-list', 'comments', 'sidebar']:
+                    for element in content.find_all(class_=lambda x: x and class_name in x.lower()):
+                        element.decompose()
                 
                 # Get all text elements
                 text_elements = []
                 for element in content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'div']):
                     text = element.get_text(strip=True)
-                    if text:
+                    if text and len(text) > 10:  # Only include substantial text elements
                         text_elements.append(text)
                 
                 # Join all text elements with proper spacing
                 text_content = ' '.join(text_elements)
                 
-                if text_content:
-                    logger.info(f"Successfully extracted content from {link}")
+                if text_content and len(text_content.split()) > 50:  # Ensure we have substantial content
+                    logger.info(f"Successfully extracted content from {link} ({len(text_content.split())} words)")
                     return text_content
                 else:
-                    logger.warning(f"Found content container but no text content in {link}")
+                    logger.warning(f"Found content container but insufficient text content in {link}")
 
             # If we couldn't find any content, log the HTML structure for debugging
             logger.warning(f"Could not find main content in article: {link}")
